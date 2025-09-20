@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Calculator</title>
+  <style>
+    :root { --bg:#0f172a; --panel:#111827; --btn:#1f2937; --btn-hover:#374151; --acc:#22d3ee; --text:#e5e7eb; }
+    *{box-sizing:border-box;font-family:system-ui,Segoe UI,Roboto,Arial}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#0ea5e9, #6366f1) fixed;}
+    .wrap{width:min(360px,92vw);background:var(--panel);border-radius:18px;padding:16px;box-shadow:0 20px 50px rgba(0,0,0,.35)}
+    .screen{background:#0b1220;color:var(--text);border-radius:12px;padding:18px;min-height:84px;text-align:right;display:flex;flex-direction:column;justify-content:center;gap:6px;word-break:break-all}
+    .screen .expr{opacity:.7;font-size:14px}
+    .screen .result{font-size:28px;font-weight:700}
+    .keys{margin-top:12px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    button{border:0;border-radius:12px;padding:16px;font-size:18px;background:var(--btn);color:var(--text);cursor:pointer;transition:.15s;user-select:none}
+    button:hover{background:var(--btn-hover)}
+    button.op{background:#0f3b52}
+    button.op:hover{background:#13526f}
+    button.eq{background:var(--acc);color:#08131a;font-weight:800}
+    button.wide{grid-column:span 2}
+    .foot{margin-top:10px;text-align:center;font-size:12px;color:#9ca3af}
+  </style>
+</head>
+<body>
+  <div class="wrap" id="app">
+    <div class="screen">
+      <div class="expr" id="expr">0</div>
+      <div class="result" id="result">0</div>
+    </div>
+    <div class="keys">
+      <button class="op" data-act="clear">AC</button>
+      <button class="op" data-act="del">DEL</button>
+      <button class="op" data-val="%">%</button>
+      <button class="op" data-val="/">÷</button>
+
+      <button data-val="7">7</button>
+      <button data-val="8">8</button>
+      <button data-val="9">9</button>
+      <button class="op" data-val="*">×</button>
+
+      <button data-val="4">4</button>
+      <button data-val="5">5</button>
+      <button data-val="6">6</button>
+      <button class="op" data-val="-">−</button>
+
+      <button data-val="1">1</button>
+      <button data-val="2">2</button>
+      <button data-val="3">3</button>
+      <button class="op" data-val="+">+</button>
+
+      <button class="wide" data-val="0">0</button>
+      <button data-val=".">.</button>
+      <button class="eq" data-act="eq">=</button>
+    </div>
+    <div class="foot">Testing Calculator</div>
+  </div>
+
+  <script>
+    const exprEl = document.getElementById('expr');
+    const resEl  = document.getElementById('result');
+    let expr = '';
+
+    const sanitize = (s) => {
+      return s.replace(/[^0-9+\-*/%.()]/g, '');
+    };
+
+    const pretty = (s) => s.replace(/\//g,'÷').replace(/\*/g,'×').replace(/-/g,'−');
+
+    const formatNumber = (num) => {
+      // Round to max 10 decimals, strip trailing zeros
+      return parseFloat(Number(num).toFixed(10)).toString();
+    };
+
+    const update = () => {
+      exprEl.textContent = expr ? pretty(expr) : '0';
+      try {
+        const safe = sanitize(expr).replace(/(\d+(?:\.\d+)?)%/g, '($1/100)');
+        if (safe && /[0-9)]$/.test(safe)) {
+          const val = Function(`"use strict"; return (${safe});`)();
+          if (Number.isFinite(val)) resEl.textContent = formatNumber(val);
+          else resEl.textContent = '0';
+        } else {
+          resEl.textContent = '0';
+        }
+      } catch { resEl.textContent = '0'; }
+    };
+
+    const pressVal = (v) => {
+      if (v === "0") {
+        // Prevent multiple leading zeroes unless decimal follows
+        if (expr === "" || /(^|[+\-*/%])0$/.test(expr)) {
+          return;
+        }
+      }
+
+      if (v === ".") {
+        // If user starts with ".", prefix with 0
+        if (expr === "" || /[+\-*/%]$/.test(expr)) {
+          expr += "0";
+        }
+      }
+
+      // Avoid double operators
+      if (/[+\-*/.%]/.test(v) && /[+\-*/.%]$/.test(expr)) {
+        expr = expr.slice(0, -1) + v;
+      } else {
+        expr += v;
+      }
+      update();
+    };
+
+    const doEq = () => {
+      const safe = sanitize(expr).replace(/(\d+(?:\.\d+)?)%/g, '($1/100)');
+      try {
+        const val = Function(`"use strict"; return (${safe});`)();
+        if (Number.isFinite(val)) {
+          expr = formatNumber(val);
+          update();
+        }
+      } catch {}
+    };
+
+    const doDel = () => { expr = expr.slice(0, -1); update(); };
+    const doClear = () => { expr = ''; update(); };
+
+    document.querySelectorAll('button[data-val]').forEach(b => {
+      b.addEventListener('click', () => pressVal(b.getAttribute('data-val')));
+    });
+    document.querySelector('button[data-act="eq"]').addEventListener('click', doEq);
+    document.querySelector('button[data-act="del"]').addEventListener('click', doDel);
+    document.querySelector('button[data-act="clear"]').addEventListener('click', doClear);
+
+    window.addEventListener('keydown', (e) => {
+      const map = { 'Enter':'=','=':'=','Escape':'AC','Backspace':'DEL','x':'*','X':'*' };
+      if (/^[0-9+\-*/().]$/.test(e.key)) pressVal(e.key);
+      else if (e.key === '%') pressVal('%');
+      else if (map[e.key] === '=') doEq();
+      else if (map[e.key] === 'AC') doClear();
+      else if (map[e.key] === 'DEL') doDel();
+      else if (e.key === ',' ) pressVal('.');
+    });
+
+    update();
+  </script>
+</body>
+</html>
